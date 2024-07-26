@@ -1,0 +1,42 @@
+filebeat.inputs:
+  - type: mqtt
+    hosts:
+      - 'websocket.easyposs.vn:8884'
+    topics: ["#"]
+    qos: 2
+    client_id: filebeat_mqtt1
+    enabled: true
+    username: EposSocket
+    password: App#Epos123@SOCKET
+    index: 'mqtt-data-%{+YYYY.MM.dd}'
+
+processors:
+  - script:
+      lang: javascript
+      id: is_validJson_and_action
+      source: >
+        function process(event) {
+          try {
+            var json = JSON.parse(event.Get("message"));
+            if (json.action === "READER_GAS") {
+              event.Put("is_validJson_and_action", true);
+            } else {
+              event.Put("is_validJson_and_action", false);
+            }
+          } catch (e) {
+            event.Put("is_validJson_and_action", false);
+          }
+        }
+  - decode_json_fields:
+      when:
+        equals:
+          is_validJson_and_action: true
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+
+output.elasticsearch:
+  hosts: [ http://elasticsearch:9200 ]
+  username: filebeat_user
+  password: 123456
+  pipeline: "extract_extId_pipeline"
